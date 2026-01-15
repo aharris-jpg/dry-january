@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dry January Completion Odds — U.S. Map (Implied Completion Probability by State)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- D3 + TopoJSON -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+
+  <style>
+    :root{
+      /* ===== DRY JANUARY: FROST + BLUE INK ===== */
+      --bgTop:#f6fbff;
+      --bgBottom:#eaf4ff;
+      --ink:#0b2235;
+
+      --accent:#0b79b9;     /* primary blue */
+      --accent2:#083a5c;    /* deep */
+      --muted:#4f6b7f;
+
+      /* Map ramp (LOW -> HIGH) - keep lows visible (not white) */
+      --m0:#bfe9ff;
+      --m1:#86d2ff;
+      --m2:#44b6f0;
+      --m3:#1e8fcb;
+      --m4:#0f6ea6;
+      --m5:#083a5c;
+
+      --card:rgba(255,255,255,0.78);
+      --border:rgba(11,34,53,0.10);
+      --shadow:0 16px 44px rgba(8,58,92,0.18);
+
+      --font: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+      --mono: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
+
+      --radius:18px;
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      margin:0;
+      font-family:var(--font);
+      color:var(--ink);
+      min-height:100vh;
+      padding:22px 14px 26px;
+      background:
+        radial-gradient(1000px 620px at 80% 18%, rgba(68,182,240,0.20), transparent 55%),
+        radial-gradient(900px 620px at 18% 14%, rgba(11,121,185,0.16), transparent 56%),
+        radial-gradient(900px 650px at 55% 88%, rgba(191,233,255,0.35), transparent 58%),
+        linear-gradient(180deg, var(--bgTop), var(--bgBottom));
+      overflow-x:hidden;
+      position:relative;
+    }
+
+    /* subtle snow specks */
+    body:before{
+      content:"";
+      position:fixed; inset:0;
+      pointer-events:none;
+      background:
+        radial-gradient(2px 2px at 12% 18%, rgba(255,255,255,0.95) 50%, transparent 52%),
+        radial-gradient(2px 2px at 68% 12%, rgba(255,255,255,0.75) 50%, transparent 52%),
+        radial-gradient(1.5px 1.5px at 44% 26%, rgba(255,255,255,0.75) 50%, transparent 52%),
+        radial-gradient(1.6px 1.6px at 84% 36%, rgba(255,255,255,0.65) 50%, transparent 52%),
+        radial-gradient(1.4px 1.4px at 18% 42%, rgba(255,255,255,0.65) 50%, transparent 52%),
+        radial-gradient(2px 2px at 30% 70%, rgba(255,255,255,0.55) 50%, transparent 52%),
+        radial-gradient(1.4px 1.4px at 76% 74%, rgba(255,255,255,0.55) 50%, transparent 52%),
+        radial-gradient(1.6px 1.6px at 55% 88%, rgba(255,255,255,0.60) 50%, transparent 52%);
+      opacity:0.28;
+      mix-blend-mode:screen;
+    }
+
+    .wrap{
+      max-width:980px;
+      margin:0 auto;
+      position:relative;
+    }
+
+    /* ===== Header ===== */
+    .hero{
+      position:relative;
+      text-align:center;
+      padding:6px 0 10px;
+      margin-bottom:12px;
+    }
+
+    .title{
+      margin:0;
+      font-weight:950;
+      letter-spacing:0.02em;
+      line-height:1.02;
+      font-size:clamp(26px, 4.3vw, 44px);
+      text-transform:uppercase;
+      color:var(--ink);
+      text-shadow:0 10px 40px rgba(8,58,92,0.10);
+      white-space:nowrap; /* keep one line */
+    }
+
+    .title .dj{
+      color:var(--accent);
+    }
+
+    .subtitle{
+      margin:8px auto 0;
+      max-width:860px;
+      color:rgba(11,34,53,0.82);
+      font-weight:800;
+      font-size:clamp(13px, 1.7vw, 16px);
+    }
+
+    /* shrink title earlier on small screens to preserve one line */
+    @media (max-width: 560px){
+      .title{ font-size:clamp(20px, 4.6vw, 28px); letter-spacing:0.01em; }
+      .subtitle{ font-size:13px; }
+    }
+
+    /* header clipart */
+    .header-art{
+      position:absolute;
+      pointer-events:none;
+      z-index:0;
+      filter: drop-shadow(0 12px 18px rgba(8,58,92,0.18));
+      opacity:0.92;
+    }
+    .header-art.left{
+      left:-10px; top:-2px;
+      width:46px;
+      transform: rotate(-10deg);
+    }
+    .header-art.right{
+      right:-8px; top:-8px;
+      width:44px;
+      transform: rotate(10deg);
+    }
+    @media (max-width: 560px){
+      .header-art.left{ left:-6px; width:38px; top:0; }
+      .header-art.right{ right:-6px; width:38px; top:-4px; }
+    }
+
+    /* ===== Card ===== */
+    .card{
+      position:relative;
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      backdrop-filter: blur(8px);
+    }
+
+    .map-area{
+      padding:14px 14px 10px;
+      position:relative;
+    }
+
+    .map-shell{
+      position:relative;
+      padding:16px; /* safe zone for outside clipart */
+    }
+
+    /* Decorative clipart OUTSIDE map frame */
+    .decor{
+      position:absolute;
+      pointer-events:none;
+      z-index:0;
+      opacity:0.30;
+      filter: drop-shadow(0 12px 18px rgba(8,58,92,0.18));
+    }
+    .decor.big{ opacity:0.34; }
+    .decor.small{ width:42px; opacity:0.26; }
+    .decor.tiny{ width:30px; opacity:0.18; }
+
+    /* Place multiple fun decals (kept away from map edges) */
+    .decor.d1{ width:96px; left:-44px; top:120px; transform: rotate(-10deg); }   /* wine */
+    .decor.d2{ width:74px; right:-38px; top:86px; transform: rotate(10deg); }    /* beer */
+    .decor.d3{ width:86px; right:-36px; bottom:110px; transform: rotate(-8deg);} /* bottle */
+    .decor.d4{ width:64px; left:-30px; bottom:90px; transform: rotate(9deg);}    /* party */
+    .decor.d5{ width:44px; left:10px; top:10px; transform: rotate(-6deg);}       /* small drink */
+    .decor.d6{ width:44px; right:10px; top:14px; transform: rotate(8deg);}       /* small clink */
+
+    /* hide some decals on very small screens to avoid clutter */
+    @media (max-width: 560px){
+      .decor.d1,.decor.d2{ display:none; }
+      .map-shell{ padding:12px; }
+    }
+
+    .map-frame{
+      position:relative;
+      z-index:1;
+      background:rgba(255,255,255,0.72);
+      border:1px solid rgba(11,34,53,0.10);
+      border-radius:16px;
+      overflow:hidden;
+    }
+
+    /* subtle “frost glow” behind the frame */
+    .map-frame:before{
+      content:"";
+      position:absolute; inset:-26px;
+      background:
+        radial-gradient(560px 300px at 28% 18%, rgba(68,182,240,0.22), transparent 62%),
+        radial-gradient(520px 280px at 72% 85%, rgba(11,121,185,0.16), transparent 64%),
+        radial-gradient(520px 260px at 70% 15%, rgba(191,233,255,0.32), transparent 62%);
+      filter: blur(12px);
+      opacity:0.85;
+      pointer-events:none;
+    }
+
+    svg{
+      width:100%;
+      height:auto;
+      display:block;
+      position:relative;
+      z-index:1;
+    }
+
+    /* Bigger gaps between states */
+    .state{
+      stroke:rgba(255,255,255,1);
+      stroke-width:6.2;
+      stroke-linejoin:round;
+      stroke-linecap:round;
+      cursor:default;
+    }
+    .state:hover{
+      stroke:rgba(11,34,53,0.85);
+      stroke-width:6.2;
+      filter: drop-shadow(0 0 10px rgba(11,121,185,0.18));
+    }
+    .state-outline{
+      fill:none;
+      stroke:rgba(11,34,53,0.06);
+      stroke-width:0.9;
+      pointer-events:none;
+    }
+
+    /* Legend */
+    .legend{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:12px;
+      padding:10px 14px 14px;
+    }
+    .legend .label{
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:0.05em;
+      text-transform:uppercase;
+      color:rgba(11,34,53,0.72);
+      white-space:nowrap;
+    }
+    .legend .bar{
+      width:min(380px, 70vw);
+      height:14px;
+      border-radius:999px;
+      background:linear-gradient(90deg, var(--m0), var(--m1), var(--m2), var(--m3), var(--m4), var(--m5));
+      border:1px solid rgba(11,34,53,0.10);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.55);
+    }
+
+    /* ===== Buckets / Tables ===== */
+    .section-title{
+      text-align:center;
+      padding:4px 14px 0;
+      font-weight:950;
+      letter-spacing:0.05em;
+      text-transform:uppercase;
+      color:rgba(11,34,53,0.78);
+      font-size:clamp(12px, 1.8vw, 14px);
+    }
+    .section-sub{
+      text-align:center;
+      margin:4px 0 0;
+      font-size:12px;
+      color:rgba(11,34,53,0.66);
+      font-weight:800;
+      padding:0 14px 10px;
+    }
+
+    .buckets{
+      padding:10px 14px 14px;
+      display:grid;
+      gap:12px;
+      grid-template-columns:repeat(3, 1fr);
+    }
+    @media (max-width: 860px){
+      .buckets{ grid-template-columns:1fr; }
+    }
+
+    .bucket{
+      background:rgba(255,255,255,0.66);
+      border:1px solid rgba(11,34,53,0.10);
+      border-radius:14px;
+      overflow:hidden;
+    }
+
+    .bucket-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 10px 8px;
+      background:rgba(11,121,185,0.08);
+      border-bottom:1px solid rgba(11,34,53,0.08);
+    }
+    .bucket-title{
+      font-weight:950;
+      font-size:12px;
+      letter-spacing:0.05em;
+      text-transform:uppercase;
+      color:rgba(11,34,53,0.82);
+      line-height:1.15;
+    }
+    .bucket-range{
+      margin-top:3px;
+      font-weight:850;
+      font-size:11px;
+      color:rgba(11,34,53,0.62);
+    }
+
+    .chip{
+      flex:0 0 auto;
+      margin-left:auto;
+      font-size:11px;
+      font-weight:950;
+      padding:6px 10px;
+      border-radius:999px;
+      color:#fff;
+      background:linear-gradient(90deg, var(--accent2), var(--accent));
+      letter-spacing:0.02em;
+      white-space:nowrap;
+    }
+
+    .bucket-body{
+      padding:8px 8px 10px;
+    }
+
+    .tbl{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+      font-size:12px;
+    }
+
+    .tbl th{
+      text-align:left;
+      font-size:10.5px;
+      text-transform:uppercase;
+      letter-spacing:0.06em;
+      color:rgba(11,34,53,0.62);
+      padding:6px 6px;
+      border-bottom:1px solid rgba(11,34,53,0.10);
+      white-space:nowrap;
+    }
+
+    .tbl td{
+      padding:6px 6px;
+      border-bottom:1px dashed rgba(11,34,53,0.10);
+      vertical-align:top;
+    }
+    .tbl tr:last-child td{ border-bottom:none; }
+
+    /* columns */
+    .c-rank{ width:44px; font-variant-numeric:tabular-nums; font-family:var(--mono); color:rgba(11,34,53,0.82); font-weight:900; }
+    .c-state{ width:auto; font-weight:900; color:rgba(11,34,53,0.90); }
+    .c-prob{ width:86px; text-align:right; font-variant-numeric:tabular-nums; font-family:var(--mono); font-weight:950; color:rgba(11,34,53,0.86); white-space:nowrap; }
+
+    /* allow state wrapping on small screens to avoid cut-off */
+    .c-state{
+      overflow:visible;
+      white-space:normal;
+      word-break:normal;
+      line-height:1.15;
+    }
+    @media (max-width: 420px){
+      .tbl{ font-size:11px; }
+      .c-prob{ width:78px; }
+      .c-rank{ width:38px; }
+    }
+
+    .dot{
+      display:inline-block;
+      width:8px; height:8px;
+      border-radius:50%;
+      margin-right:8px;
+      transform: translateY(-1px);
+      background:var(--accent);
+      box-shadow:0 0 0 2px rgba(11,121,185,0.14);
+      vertical-align:middle;
+    }
+
+    /* Tooltip */
+    .tooltip{
+      position:absolute;
+      pointer-events:none;
+      display:none;
+      z-index:100;
+      background:rgba(255,255,255,0.96);
+      border:1px solid rgba(11,34,53,0.14);
+      border-radius:14px;
+      padding:10px 12px;
+      box-shadow:0 18px 44px rgba(8,58,92,0.20);
+      max-width:260px;
+      backdrop-filter: blur(10px);
+    }
+    .tooltip strong{
+      display:block;
+      font-weight:950;
+      margin-bottom:4px;
+      color:rgba(11,34,53,0.92);
+    }
+    .tooltip .mono{
+      font-family:var(--mono);
+      font-variant-numeric:tabular-nums;
+      color:rgba(11,121,185,0.92);
+      font-weight:950;
+    }
+    .tooltip .muted{
+      margin-top:4px;
+      font-size:11px;
+      color:rgba(11,34,53,0.64);
+      font-weight:800;
+    }
+
+    /* Footer */
+    .footer{
+      margin-top:0;
+      padding:12px 14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      background:rgba(255,255,255,0.60);
+      border-top:1px solid rgba(11,34,53,0.10);
+      position:relative;
+    }
+
+    .source{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      font-size:12px;
+      color:rgba(11,34,53,0.78);
+      font-weight:900;
+      letter-spacing:0.04em;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
+    .source a{
+      color:rgba(11,121,185,0.98);
+      text-decoration:none;
+      border-bottom:1px dotted rgba(11,121,185,0.55);
+      font-weight:950;
+      text-transform:none;
+      letter-spacing:0;
+      width:max-content;
+    }
+
+    .logo{
+      height:44px;
+      width:auto;
+      display:block;
+      filter: drop-shadow(0 10px 18px rgba(8,58,92,0.18));
+    }
+
+    .footer-art{
+      display:flex;
+      align-items:flex-end;
+      gap:10px;
+      pointer-events:none;
+      opacity:0.95;
+    }
+    .footer-art img:nth-child(1){
+      height:34px;
+      transform: rotate(-8deg);
+      filter: drop-shadow(0 10px 16px rgba(8,58,92,0.18));
+      opacity:0.85;
+    }
+    .footer-art img:nth-child(2){
+      height:36px;
+      transform: rotate(10deg) translateY(2px);
+      filter: drop-shadow(0 10px 16px rgba(8,58,92,0.18));
+      opacity:0.85;
+    }
+
+    /* Methodology block */
+    .method{
+      padding:10px 14px 14px;
+      font-size:11px;
+      line-height:1.35;
+      color:rgba(11,34,53,0.66);
+      border-top:1px solid rgba(11,34,53,0.08);
+      background:rgba(255,255,255,0.55);
+    }
+    .method strong{ color:rgba(11,34,53,0.82); }
+
+    /* Embed */
+    .embed{
+      padding:12px 14px 16px;
+      background:rgba(255,255,255,0.55);
+      border-top:1px solid rgba(11,34,53,0.08);
+    }
+    .embed-btn{
+      appearance:none;
+      border:1px solid rgba(11,34,53,0.14);
+      background:linear-gradient(90deg, rgba(11,121,185,0.95), rgba(68,182,240,0.95));
+      color:#fff;
+      font-weight:950;
+      letter-spacing:0.02em;
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      box-shadow:0 14px 30px rgba(8,58,92,0.18);
+    }
+    .embed-btn:hover{ filter:brightness(1.02); transform: translateY(-1px); }
+    .embed-panel[hidden]{ display:none; }
+    .embed-panel{
+      margin-top:10px;
+      border:1px solid rgba(11,34,53,0.12);
+      border-radius:14px;
+      overflow:hidden;
+      background:rgba(255,255,255,0.62);
+    }
+    .embed-panel .hint{
+      padding:10px 12px;
+      font-size:11px;
+      color:rgba(11,34,53,0.70);
+      border-bottom:1px solid rgba(11,34,53,0.10);
+      font-weight:800;
+    }
+    .embed-panel textarea{
+      width:100%;
+      height:130px;
+      padding:10px 12px;
+      border:0;
+      outline:none;
+      resize:none;
+      background:transparent;
+      color:rgba(11,34,53,0.88);
+      font:12px/1.4 var(--mono);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1 class="title"><span class="dj">DRY JANUARY</span> COMPLETION ODDS</h1>
+      <div class="subtitle">Implied probability of completing Dry January (Feb 1), by state</div>
+
+      <!-- header clipart -->
+      <img class="header-art left" src="https://i.postimg.cc/V6Tz7QbK/drunkard-clipart-xl.png" alt="" aria-hidden="true">
+      <img class="header-art right" src="https://i.postimg.cc/wvP9W8sC/pngtree-two-frothy-beer-glasses-clipart-illustration-png-image-13873369.png" alt="" aria-hidden="true">
+    </div>
+
+    <div class="card">
+      <div class="map-area">
+        <div class="map-shell">
+          <!-- OUTSIDE map frame decals (restored / more prominent) -->
+          <img class="decor d1 big" src="https://i.postimg.cc/yxZstQFb/glass-304619-1280.webp" alt="" aria-hidden="true">
+          <img class="decor d2 big" src="https://i.postimg.cc/tJxpwShm/pngtree-wine-clinking-glass-png-file-png-image-9427013.png" alt="" aria-hidden="true">
+          <img class="decor d3 big" src="https://i.postimg.cc/B6yJh91y/pngtree-alcohol-bottle-vector-png-image-12154083.png" alt="" aria-hidden="true">
+          <img class="decor d4 big" src="https://i.postimg.cc/d1XJWPTp/32-324891-people-drinking-cliparts-drink-party-clipart-png-download.png" alt="" aria-hidden="true">
+          <img class="decor d5 tiny" src="https://i.postimg.cc/MT4zs2jg/11-113266-drink-clipart-man-drinking-alcohol-cartoon-png.png" alt="" aria-hidden="true">
+          <img class="decor d6 tiny" src="https://i.postimg.cc/j59R80JF/alcohol-row.png" alt="" aria-hidden="true">
+
+          <div class="map-frame">
+            <svg id="map" viewBox="0 0 975 610" role="img" aria-label="Dry January Completion Odds map"></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="legend" aria-label="Legend">
+        <div class="label">Harder to finish</div>
+        <div class="bar" aria-hidden="true"></div>
+        <div class="label">Easier to finish</div>
+      </div>
+
+      <div class="section-title">Implied completion probability</div>
+      <div class="section-sub">Rank 1 = most likely to finish • Higher % = easier to finish</div>
+
+      <div class="buckets" id="buckets"></div>
+
+      <div class="footer">
+        <div class="source">
+          <div>SOURCE: VEGAS INSIDER</div>
+          <a href="https://www.vegasinsider.com/" target="_blank" rel="noopener">vegasinsider.com</a>
+        </div>
+
+        <img class="logo" src="https://i.postimg.cc/65VDq2fP/download-2.png" alt="Vegas Insider logo" />
+
+        <div class="footer-art" aria-hidden="true">
+          <img src="https://i.postimg.cc/yxZstQFb/glass-304619-1280.webp" alt="">
+          <img src="https://i.postimg.cc/wvP9W8sC/pngtree-two-frothy-beer-glasses-clipart-illustration-png-image-13873369.png" alt="">
+        </div>
+      </div>
+
+      <div class="method">
+        <strong>Methodology:</strong> States are ranked by an odds-style model of Dry January completion conditions. Colors and tables reflect <strong>implied completion probability</strong> (higher % = easier).
+        <br><br>
+        <strong>Inputs:</strong> binge drinking, physical activity, smoking, January temperature, and non-drinker share (weighted).
+      </div>
+
+      <div class="embed">
+        <button class="embed-btn" id="embedToggle" type="button" aria-controls="embedPanel" aria-expanded="false">
+          Get embed code
+        </button>
+
+        <div class="embed-panel" id="embedPanel" hidden>
+          <div class="hint">Copy/paste this iframe. Replace the <strong>src</strong> with your hosted URL.</div>
+          <textarea id="embedCode" readonly onclick="this.select()"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tt"></div>
+
+  <script>
+    // === Data: implied probability + rank (from your dataset) ===
+    const dryData = {
+      "Utah": {abbr:"UT", rank:1,  prob:62.97},
+      "Minnesota": {abbr:"MN", rank:2,  prob:62.37},
+      "Vermont": {abbr:"VT", rank:3,  prob:57.92},
+      "Alaska": {abbr:"AK", rank:4,  prob:55.67},
+      "Wisconsin": {abbr:"WI", rank:5,  prob:55.37},
+      "Colorado": {abbr:"CO", rank:6,  prob:54.86},
+      "New Hampshire": {abbr:"NH", rank:7,  prob:53.93},
+      "Washington": {abbr:"WA", rank:8,  prob:52.32},
+      "Massachusetts": {abbr:"MA", rank:9,  prob:51.44},
+      "Connecticut": {abbr:"CT", rank:10, prob:51.08},
+      "Montana": {abbr:"MT", rank:11, prob:50.41},
+      "Hawaii": {abbr:"HI", rank:12, prob:50.35},
+      "New York": {abbr:"NY", rank:13, prob:49.86},
+      "Michigan": {abbr:"MI", rank:14, prob:49.42},
+      "North Dakota": {abbr:"ND", rank:15, prob:49.26},
+      "Maine": {abbr:"ME", rank:16, prob:48.88},
+      "Maryland": {abbr:"MD", rank:17, prob:48.53},
+      "Iowa": {abbr:"IA", rank:18, prob:48.35},
+      "California": {abbr:"CA", rank:19, prob:46.30},
+      "Idaho": {abbr:"ID", rank:20, prob:45.85},
+      "Nebraska": {abbr:"NE", rank:21, prob:45.10},
+      "Illinois": {abbr:"IL", rank:22, prob:44.48},
+      "Wyoming": {abbr:"WY", rank:23, prob:44.39},
+      "South Dakota": {abbr:"SD", rank:24, prob:43.06},
+      "Oregon": {abbr:"OR", rank:25, prob:42.94},
+      "Rhode Island": {abbr:"RI", rank:26, prob:42.37},
+      "Pennsylvania": {abbr:"PA", rank:27, prob:40.17},
+      "Virginia": {abbr:"VA", rank:28, prob:39.14},
+      "Kansas": {abbr:"KS", rank:29, prob:37.86},
+      "New Jersey": {abbr:"NJ", rank:30, prob:34.83},
+      "Ohio": {abbr:"OH", rank:31, prob:34.47},
+      "Nevada": {abbr:"NV", rank:32, prob:34.39},
+      "New Mexico": {abbr:"NM", rank:33, prob:34.37},
+      "North Carolina": {abbr:"NC", rank:34, prob:33.35},
+      "Delaware": {abbr:"DE", rank:35, prob:32.84},
+      "Arizona": {abbr:"AZ", rank:36, prob:32.76},
+      "Missouri": {abbr:"MO", rank:37, prob:30.68},
+      "Indiana": {abbr:"IN", rank:38, prob:30.30},
+      "Georgia": {abbr:"GA", rank:39, prob:26.24},
+      "Texas": {abbr:"TX", rank:40, prob:25.54},
+      "South Carolina": {abbr:"SC", rank:41, prob:24.62},
+      "Tennessee": {abbr:"TN", rank:42, prob:24.40},
+      "Oklahoma": {abbr:"OK", rank:43, prob:23.94},
+      "Florida": {abbr:"FL", rank:44, prob:22.43},
+      "West Virginia": {abbr:"WV", rank:45, prob:20.95},
+      "Arkansas": {abbr:"AR", rank:46, prob:19.57},
+      "Alabama": {abbr:"AL", rank:47, prob:19.17},
+      "Kentucky": {abbr:"KY", rank:48, prob:17.72},
+      "Louisiana": {abbr:"LA", rank:49, prob:17.35},
+      "Mississippi": {abbr:"MS", rank:50, prob:15.65}
+    };
+
+    // Map color scale based on implied probability (0–100 domain for consistent ramp)
+    const ramp = ["#bfe9ff","#86d2ff","#44b6f0","#1e8fcb","#0f6ea6","#083a5c"];
+    const color = d3.scaleQuantize().domain([15, 63]).range(ramp); // tight domain = stronger contrast
+
+    const svg = d3.select("#map");
+    const tooltip = d3.select("#tt");
+
+    const W = 975, H = 610;
+    const projection = d3.geoAlbersUsa().scale(1300).translate([W/2, H/2]);
+    const path = d3.geoPath(projection);
+
+    function esc(s){
+      return String(s).replace(/[&<>"']/g, c => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[c]));
+    }
+
+    function placeTooltip(event){
+      const rect = tooltip.node().getBoundingClientRect();
+      const pad = 10;
+      let x = event.pageX + 12;
+      let y = event.pageY + 12;
+      if (x + rect.width > window.innerWidth - pad) x = window.innerWidth - rect.width - pad;
+      if (y + rect.height > window.innerHeight - pad) y = window.innerHeight - rect.height - pad;
+      tooltip.style("left", x+"px").style("top", y+"px");
+    }
+
+    function showTip(event, stateName, d){
+      tooltip
+        .style("display","block")
+        .html(
+          `<strong>${esc(stateName)} (${d.abbr})</strong>
+           <div class="mono">Rank ${d.rank} • ${d.prob.toFixed(2)}%</div>
+           <div class="muted">Higher % = easier to finish</div>`
+        );
+      placeTooltip(event);
+    }
+    function hideTip(){ tooltip.style("display","none"); }
+
+    // Build bucket tables: 1–17, 18–34, 35–50 (all 50 shown)
+    const rows = Object.entries(dryData)
+      .map(([state, v]) => ({ state, ...v }))
+      .sort((a,b)=>a.rank-b.rank);
+
+    const bucketsDef = [
+      { title:"Most likely to finish", chip:"Easiest", from:1,  to:17 },
+      { title:"Middle of the pack",    chip:"Mixed",   from:18, to:34 },
+      { title:"Least likely to finish", chip:"Hardest", from:35, to:50 }
+    ];
+
+    function dotColor(p){
+      // dot matches map ramp for quick scan
+      return color(p);
+    }
+
+    function renderBucket(b){
+      const subset = rows.filter(r => r.rank >= b.from && r.rank <= b.to);
+      const head =
+        `<div class="bucket-head">
+          <div>
+            <div class="bucket-title">${esc(b.title)}</div>
+            <div class="bucket-range">Ranks ${b.from}–${b.to}</div>
+          </div>
+          <div class="chip">${esc(b.chip)}</div>
+        </div>`;
+
+      const tableHead =
+        `<table class="tbl" role="table" aria-label="${esc(b.title)} table">
+          <thead>
+            <tr>
+              <th class="c-rank">Rank</th>
+              <th class="c-state">State</th>
+              <th class="c-prob">Implied %</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+      const body = subset.map(r => `
+        <tr>
+          <td class="c-rank">${r.rank}</td>
+          <td class="c-state"><span class="dot" style="background:${dotColor(r.prob)}"></span>${esc(r.state)}</td>
+          <td class="c-prob">${r.prob.toFixed(2)}%</td>
+        </tr>
+      `).join("");
+
+      const tail = `</tbody></table>`;
+      return `<div class="bucket">${head}<div class="bucket-body">${tableHead}${body}${tail}</div></div>`;
+    }
+
+    const bucketsEl = document.getElementById("buckets");
+    bucketsEl.innerHTML = bucketsDef.map(renderBucket).join("");
+
+    // Draw map
+    d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json").then(us => {
+      const states = topojson.feature(us, us.objects.states).features;
+      svg.attr("viewBox", `0 0 ${W} ${H}`);
+
+      svg.selectAll("path.state")
+        .data(states)
+        .join("path")
+        .attr("class","state")
+        .attr("d", path)
+        .attr("fill", d => {
+          const name = d.properties && d.properties.name;
+          const data = dryData[name];
+          // keep "missing" visible but neutral
+          return data ? color(data.prob) : "rgba(11,121,185,0.12)";
+        })
+        .on("mousemove", (event, d) => {
+          const name = d.properties && d.properties.name;
+          const data = dryData[name];
+          if(!data) return hideTip();
+          showTip(event, name, data);
+        })
+        .on("mouseout", hideTip)
+        .on("click", (event, d) => {
+          const name = d.properties && d.properties.name;
+          const data = dryData[name];
+          if(!data) return hideTip();
+          showTip(event, name, data);
+          event.stopPropagation();
+        });
+
+      svg.append("path")
+        .datum(topojson.mesh(us, us.objects.states, (a,b)=>a!==b))
+        .attr("class","state-outline")
+        .attr("d", path);
+
+      document.addEventListener("click", hideTip);
+      document.addEventListener("keydown", (e)=>{ if(e.key==="Escape") hideTip(); });
+    });
+
+    // Embed logic
+    const embedToggle = document.getElementById("embedToggle");
+    const embedPanel  = document.getElementById("embedPanel");
+    const embedCode   = document.getElementById("embedCode");
+
+    if (embedCode) {
+      embedCode.value =
+`<iframe
+  src="https://aharris-jpg.github.io/dry-january/map.html"
+  title="Dry January Completion Odds — Implied completion probability by state"
+  width="100%" height="980"
+  style="border:0;overflow:hidden;display:block;width:100%;"
+  loading="lazy"></iframe>`;
+    }
+
+    if (embedToggle) {
+      embedToggle.addEventListener("click", () => {
+        const hidden = embedPanel.hasAttribute("hidden");
+        if (hidden) {
+          embedPanel.removeAttribute("hidden");
+          embedToggle.setAttribute("aria-expanded", "true");
+          embedToggle.textContent = "Hide embed code";
+        } else {
+          embedPanel.setAttribute("hidden", "");
+          embedToggle.setAttribute("aria-expanded", "false");
+          embedToggle.textContent = "Get embed code";
+        }
+      });
+    }
+  </script>
+</body>
+</html>
