@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dry January Editorial Image</title>
+
+  <style>
+    :root{
+      --ink:#0d1b2a;
+      --muted:#6b7280;
+
+      /* Dry January blues */
+      --b1:#cfeeff;
+      --b2:#86d3ff;
+      --b3:#2ea7d6;
+      --b4:#0c6e97;
+      --b5:#05324d;
+
+      --card:#ffffff;
+      --radius:18px;
+      --shadow:0 18px 55px rgba(13,27,42,0.14);
+    }
+
+    body{
+      margin:0;
+      padding:32px 14px 40px;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      color:var(--ink);
+      background:linear-gradient(180deg,#f6fbff,#eaf6ff);
+    }
+
+    .dj-image-wrap{
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    figure.dj-image{
+      margin:0;
+    }
+
+    .dj-frame{
+      position:relative;
+      border-radius: var(--radius);
+      background: var(--card);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      isolation:isolate;
+    }
+
+    /* Gradient border (editorial highlight) */
+    .dj-frame::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      padding:14px;
+      border-radius: var(--radius);
+      background:
+        linear-gradient(135deg, var(--b2), var(--b5)) border-box;
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+              mask-composite: exclude;
+      z-index:0;
+    }
+
+    /* Soft inner wash for depth */
+    .dj-frame::after{
+      content:"";
+      position:absolute;
+      inset:14px;
+      border-radius: calc(var(--radius) - 10px);
+      background:
+        radial-gradient(900px 420px at 20% 10%, rgba(134,211,255,0.22), transparent 60%),
+        radial-gradient(900px 420px at 85% 90%, rgba(12,110,151,0.14), transparent 62%),
+        linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,251,255,0.96));
+      z-index:0;
+      pointer-events:none;
+    }
+
+    .dj-frame img{
+      position:relative;
+      z-index:1;
+      width:100%;
+      height:auto;
+      display:block;
+      margin:14px;
+      border-radius: calc(var(--radius) - 10px);
+      box-shadow:
+        0 10px 26px rgba(0,0,0,0.10),
+        0 2px 6px rgba(0,0,0,0.05);
+    }
+
+    figcaption{
+      margin-top:10px;
+      font-size:12px;
+      color:var(--muted);
+      text-align:right;
+    }
+
+    /* Mobile tweaks */
+    @media (max-width: 720px){
+      .dj-frame::before{ padding:12px; }
+      .dj-frame::after{ inset:12px; }
+      .dj-frame img{ margin:12px; }
+    }
+
+    @media (max-width: 420px){
+      body{ padding:24px 10px 32px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="dj-image-wrap">
+    <figure class="dj-image">
+      <div class="dj-frame">
+        <img
+          src="https://plus.unsplash.com/premium_photo-1687977546927-43d42d183dc0?q=80&w=1600&auto=format&fit=crop"
+          alt="Tabletop arrangement of refreshing drinks — Dry January theme"
+          loading="lazy"
+        />
+      </div>
+      <figcaption>Photo via Unsplash</figcaption>
+    </figure>
+  </div>
+</body>
+</html>
