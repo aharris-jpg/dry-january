@@ -28,12 +28,12 @@
       font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
       color:var(--ink);
       background:linear-gradient(180deg,#f6fbff,#eaf6ff);
-      overflow-x:hidden; /* safety net */
+      overflow-x:hidden;
     }
 
     .dj-image-wrap{
-      max-width: 980px;
-      margin: 0 auto;
+      max-width:980px;
+      margin:0 auto;
     }
 
     figure.dj-image{
@@ -42,37 +42,37 @@
 
     .dj-frame{
       position:relative;
-      border-radius: var(--radius);
-      background: var(--card);
-      box-shadow: var(--shadow);
+      border-radius:var(--radius);
+      background:var(--card);
+      box-shadow:var(--shadow);
       overflow:hidden;
       isolation:isolate;
-      padding:14px; /* moved from img margin to frame padding */
+      padding:14px;
     }
 
-    /* Gradient border (editorial highlight) */
+    /* Gradient editorial border */
     .dj-frame::before{
       content:"";
       position:absolute;
       inset:0;
       padding:14px;
-      border-radius: var(--radius);
-      background: linear-gradient(135deg, var(--b2), var(--b5)) border-box;
+      border-radius:var(--radius);
+      background:linear-gradient(135deg,var(--b2),var(--b5)) border-box;
       -webkit-mask:
         linear-gradient(#000 0 0) content-box,
         linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor;
-              mask-composite: exclude;
+      -webkit-mask-composite:xor;
+              mask-composite:exclude;
       pointer-events:none;
       z-index:0;
     }
 
-    /* Soft inner wash for depth */
+    /* Soft inner wash */
     .dj-frame::after{
       content:"";
       position:absolute;
       inset:14px;
-      border-radius: calc(var(--radius) - 10px);
+      border-radius:calc(var(--radius) - 10px);
       background:
         radial-gradient(900px 420px at 20% 10%, rgba(134,211,255,0.22), transparent 60%),
         radial-gradient(900px 420px at 85% 90%, rgba(12,110,151,0.14), transparent 62%),
@@ -87,7 +87,7 @@
       width:100%;
       height:auto;
       display:block;
-      border-radius: calc(var(--radius) - 10px);
+      border-radius:calc(var(--radius) - 10px);
       box-shadow:
         0 10px 26px rgba(0,0,0,0.10),
         0 2px 6px rgba(0,0,0,0.05);
@@ -100,14 +100,13 @@
       text-align:right;
     }
 
-    /* Mobile tweaks */
-    @media (max-width: 720px){
+    @media (max-width:720px){
       .dj-frame{ padding:12px; }
       .dj-frame::before{ padding:12px; }
       .dj-frame::after{ inset:12px; }
     }
 
-    @media (max-width: 420px){
+    @media (max-width:420px){
       body{ padding:24px 10px 32px; }
     }
   </style>
@@ -126,5 +125,19 @@
       <figcaption>Photo via Unsplash</figcaption>
     </figure>
   </div>
+
+  <!-- 🔑 Auto-resize iframe script -->
+  <script>
+    function sendHeight() {
+      const height = document.documentElement.scrollHeight;
+      parent.postMessage(
+        { type: "resize-iframe", height },
+        "*"
+      );
+    }
+
+    window.addEventListener("load", sendHeight);
+    window.addEventListener("resize", sendHeight);
+  </script>
 </body>
 </html>
